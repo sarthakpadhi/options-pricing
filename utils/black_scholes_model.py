@@ -8,10 +8,11 @@ import investpy
 class EuropeanOptionPricing:
     def __init__(
         self,
-        stock_price: float,
         strike_price: float,
         time_to_expiration: float,
         volatility: float,
+        stock_price: Optional[float] = None,
+        stock_ticker: Optional[str] = None,
         risk_free_rate: Optional[float] = None,
     ):
         self.stock_price = stock_price
@@ -19,11 +20,28 @@ class EuropeanOptionPricing:
         self.time_to_expiration = time_to_expiration
         self.risk_free_rate = risk_free_rate
         self.volatility = volatility
-        
+        self.stock_ticker = stock_ticker
+
+        if self.stock_ticker is not None:
+            # Fetch stock price using investpy if stock_ticker is provided
+            stock_data = investpy.get_stock_recent_data(
+                stock=self.stock_ticker, country="India"
+            )
+            self.stock_price = stock_data.iloc[-1].Close
         if self.risk_free_rate is None:
             self._get_risk_free_rate()
 
         self.bsm_assets()
+
+    @staticmethod
+    def get_most_recent_stock_price(stock_ticker: str) -> float:
+        """
+        Fetches the stock price for a given stock ticker.
+        :param stock_ticker: The ticker symbol of the stock.
+        :return: The current stock price.
+        """
+        stock_data = investpy.get_stock_recent_data(stock=stock_ticker, country="India")
+        return stock_data.iloc[-1]
 
     def _get_risk_free_rate(self):
         # Get India government bond data
