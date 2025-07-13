@@ -3,6 +3,7 @@ import numpy as np
 from scipy.stats import norm
 from typing import Optional
 import investpy
+import yfinance as yf
 
 
 class EuropeanOptionPricing:
@@ -24,10 +25,7 @@ class EuropeanOptionPricing:
 
         if self.stock_ticker is not None:
             # Fetch stock price using investpy if stock_ticker is provided
-            stock_data = investpy.get_stock_recent_data(
-                stock=self.stock_ticker, country="India"
-            )
-            self.stock_price = stock_data.iloc[-1].Close
+            self.stock_price = EuropeanOptionPricing.get_most_recent_stock_price(self.stock_ticker)
         if self.risk_free_rate is None:
             self._get_risk_free_rate()
 
@@ -36,12 +34,17 @@ class EuropeanOptionPricing:
     @staticmethod
     def get_most_recent_stock_price(stock_ticker: str) -> float:
         """
-        Fetches the stock price for a given stock ticker.
-        :param stock_ticker: The ticker symbol of the stock.
-        :return: The current stock price.
+        Fetches the most recent closing stock price for a given stock ticker.
+        :param stock_ticker: The ticker symbol of the stock (e.g., 'RELIANCE.NS').
+        :return: The most recent closing stock price.
         """
-        stock_data = investpy.get_stock_recent_data(stock=stock_ticker, country="India")
-        return stock_data.iloc[-1]
+        if not stock_ticker.endswith(".NS"):
+            stock_ticker += ".NS"
+        stock = yf.Ticker(stock_ticker)
+        hist = stock.history(period="1d")
+        if hist.empty:
+            raise ValueError(f"No data found for ticker: {stock_ticker}")
+        return hist["Close"].iloc[-1]
 
     def _get_risk_free_rate(self):
         # Get India government bond data
