@@ -6,16 +6,16 @@ from typing import Optional, Tuple, Annotated
 import investpy
 import plotly.graph_objects as go
 import plotly.express as px
-from utils.black_scholes_model import EuropeanOptionPricing
+from utils.black_scholes_model import BSMOptionPricing
 from utils.mc_simulations import MCSimulation
 
 
-def create_payoff_diagram(option_type, strike_price, option_price, spot_range):
+def create_payoff_diagram(option_type, K, option_price, spot_range):
     """Create payoff diagram for options"""
     if option_type == "Call":
-        payoff = np.maximum(spot_range - strike_price, 0) - option_price
+        payoff = np.maximum(spot_range - K, 0) - option_price
     else:
-        payoff = np.maximum(strike_price - spot_range, 0) - option_price
+        payoff = np.maximum(K - spot_range, 0) - option_price
 
     fig = go.Figure()
     fig.add_trace(
@@ -32,7 +32,7 @@ def create_payoff_diagram(option_type, strike_price, option_price, spot_range):
         y=0, line_dash="dash", line_color="gray", annotation_text="Break-even"
     )
     fig.add_vline(
-        x=strike_price,
+        x=K,
         line_dash="dash",
         line_color="red",
         annotation_text="Strike Price",
@@ -79,11 +79,11 @@ def main():
     )
 
     if input_method == "Manual Input":
-        stock_price = st.sidebar.number_input(
+        S0 = st.sidebar.number_input(
             "Current Stock Price (₹)", min_value=0.01, value=100.0, step=0.01
         )
         stock_ticker = None
-        risk_free_rate = (
+        r = (
             st.sidebar.number_input(
                 "Risk-Free Rate (%)",
                 min_value=0.0,
@@ -97,13 +97,13 @@ def main():
         stock_ticker = st.sidebar.text_input(
             "Stock Ticker (e.g., RELIANCE)", value="RELIANCE"
         )
-        stock_price = None
-        risk_free_rate = None
+        S0 = None
+        r = None
 
         if stock_ticker:
             try:
                 with st.spinner("Fetching stock data..."):
-                    current_price = EuropeanOptionPricing.get_most_recent_stock_price(
+                    current_price = BSMOptionPricing.get_most_recent_S0(
                         stock_ticker
                     )
                     st.sidebar.success(f"Current Price: ₹{current_price:.2f}")
@@ -111,15 +111,15 @@ def main():
                 st.sidebar.error(f"Error fetching data: {str(e)}")
 
     # Other parameters
-    strike_price = st.sidebar.number_input(
+    K = st.sidebar.number_input(
         "Strike Price (₹)", min_value=0.01, value=100.0, step=0.01
     )
 
-    time_to_expiration = st.sidebar.number_input(
+    T = st.sidebar.number_input(
         "Time to Expiration (Years)", min_value=0.001, value=0.25, step=0.001
     )
 
-    volatility = (
+    vol = (
         st.sidebar.number_input(
             "Volatility (%)", min_value=0.1, max_value=200.0, value=20.0, step=0.1
         )
@@ -149,29 +149,29 @@ def main():
                 # Initialize parameters for calculations
                 if input_method == "Fetch from Stock Ticker":
                     # Get stock price and risk-free rate
-                    option_calculator = EuropeanOptionPricing(
-                        strike_price=strike_price,
-                        time_to_expiration=time_to_expiration,
-                        volatility=volatility,
-                        stock_price=stock_price,
+                    option_calculator = BSMOptionPricing(
+                        K=K,
+                        T=T,
+                        vol=vol,
+                        S0=S0,
                         stock_ticker=stock_ticker,
-                        risk_free_rate=risk_free_rate,
+                        r=r,
                     )
-                    actual_stock_price = option_calculator.stock_price
-                    actual_risk_free_rate = option_calculator.risk_free_rate
+                    actual_S0 = option_calculator.S0
+                    actual_r = option_calculator.r
                 else:
-                    actual_stock_price = stock_price
-                    actual_risk_free_rate = risk_free_rate
+                    actual_S0 = S0
+                    actual_r = r
 
                 if pricing_method == "Black-Scholes Model":
                     # Black-Scholes calculation
-                    option_calculator = EuropeanOptionPricing(
-                        strike_price=strike_price,
-                        time_to_expiration=time_to_expiration,
-                        volatility=volatility,
-                        stock_price=stock_price,
+                    option_calculator = BSMOptionPricing(
+                        K=K,
+                        T=T,
+                        vol=vol,
+                        S0=S0,
                         stock_ticker=stock_ticker,
-                        risk_free_rate=risk_free_rate,
+                        r=r,
                     )
 
                     call_price = option_calculator.calculate_call_option_price()
@@ -183,9 +183,9 @@ def main():
                     with col1:
                         st.metric(
                             "Current Stock Price",
-                            f"₹{option_calculator.stock_price:.2f}",
+                            f"₹{option_calculator.S0:.2f}",
                         )
-                        st.metric("Strike Price", f"₹{strike_price:.2f}")
+                        st.metric("Strike Price", f"₹{K:.2f}")
 
                     with col2:
                         st.metric("Call Option Price (BS)", f"₹{call_price:.2f}")
@@ -193,21 +193,21 @@ def main():
 
                     with col3:
                         st.metric(
-                            "Time to Expiration", f"{time_to_expiration:.3f} years"
+                            "Time to Expiration", f"{T:.3f} years"
                         )
                         st.metric(
                             "Risk-Free Rate",
-                            f"{option_calculator.risk_free_rate*100:.2f}%",
+                            f"{option_calculator.r*100:.2f}%",
                         )
 
                 elif pricing_method == "Monte Carlo Simulation":
                     # Monte Carlo calculation
                     mc_calculator = MCSimulation(
-                        stock_price=actual_stock_price,
-                        strike_price=strike_price,
-                        time_to_expiration=time_to_expiration,
-                        volatility=volatility,
-                        risk_free_rate=actual_risk_free_rate,
+                        S0=actual_S0,
+                        K=K,
+                        T=T,
+                        vol=vol,
+                        r=actual_r,
                         time_steps=time_steps,
                     )
 
@@ -223,8 +223,8 @@ def main():
                     col1, col2, col3 = st.columns(3)
 
                     with col1:
-                        st.metric("Current Stock Price", f"₹{actual_stock_price:.2f}")
-                        st.metric("Strike Price", f"₹{strike_price:.2f}")
+                        st.metric("Current Stock Price", f"₹{actual_S0:.2f}")
+                        st.metric("Strike Price", f"₹{K:.2f}")
 
                     with col2:
                         st.metric("Call Option Price (MC)", f"₹{call_price:.2f}")
@@ -252,13 +252,13 @@ def main():
 
                 else:  # Compare Both Methods
                     # Black-Scholes calculation
-                    option_calculator = EuropeanOptionPricing(
-                        strike_price=strike_price,
-                        time_to_expiration=time_to_expiration,
-                        volatility=volatility,
-                        stock_price=stock_price,
+                    option_calculator = BSMOptionPricing(
+                        K=K,
+                        T=T,
+                        vol=vol,
+                        S0=S0,
                         stock_ticker=stock_ticker,
-                        risk_free_rate=risk_free_rate,
+                        r=r,
                     )
 
                     bs_call_price = option_calculator.calculate_call_option_price()
@@ -266,11 +266,11 @@ def main():
 
                     # Monte Carlo calculation
                     mc_calculator = MCSimulation(
-                        stock_price=option_calculator.stock_price,
-                        strike_price=strike_price,
-                        time_to_expiration=time_to_expiration,
-                        volatility=volatility,
-                        risk_free_rate=option_calculator.risk_free_rate,
+                        S0=option_calculator.S0,
+                        K=K,
+                        T=T,
+                        vol=vol,
+                        r=option_calculator.r,
                         time_steps=time_steps,
                     )
 
@@ -289,9 +289,9 @@ def main():
 
                     with col1:
                         st.metric(
-                            "Stock Price", f"₹{option_calculator.stock_price:.2f}"
+                            "Stock Price", f"₹{option_calculator.S0:.2f}"
                         )
-                        st.metric("Strike Price", f"₹{strike_price:.2f}")
+                        st.metric("Strike Price", f"₹{K:.2f}")
 
                     with col2:
                         st.metric("Call Price (BS)", f"₹{bs_call_price:.2f}")
@@ -336,30 +336,30 @@ def main():
                 # Use the appropriate call/put prices for payoff diagrams
                 if pricing_method == "Black-Scholes Model":
                     payoff_call_price, payoff_put_price = call_price, put_price
-                    payoff_stock_price = option_calculator.stock_price
+                    payoff_S0 = option_calculator.S0
                 elif pricing_method == "Monte Carlo Simulation":
                     payoff_call_price, payoff_put_price = call_price, put_price
-                    payoff_stock_price = actual_stock_price
+                    payoff_S0 = actual_S0
                 else:  # Compare both
                     payoff_call_price, payoff_put_price = bs_call_price, bs_put_price
-                    payoff_stock_price = option_calculator.stock_price
+                    payoff_S0 = option_calculator.S0
 
                 # Create spot price range for payoff diagram
-                spot_min = payoff_stock_price * 0.7
-                spot_max = payoff_stock_price * 1.3
+                spot_min = payoff_S0 * 0.7
+                spot_max = payoff_S0 * 1.3
                 spot_range = np.linspace(spot_min, spot_max, 100)
 
                 col1, col2 = st.columns(2)
 
                 with col1:
                     call_fig = create_payoff_diagram(
-                        "Call", strike_price, payoff_call_price, spot_range
+                        "Call", K, payoff_call_price, spot_range
                     )
                     st.plotly_chart(call_fig, use_container_width=True)
 
                 with col2:
                     put_fig = create_payoff_diagram(
-                        "Put", strike_price, payoff_put_price, spot_range
+                        "Put", K, payoff_put_price, spot_range
                     )
                     st.plotly_chart(put_fig, use_container_width=True)
 
@@ -372,7 +372,7 @@ def main():
             """
         **Black-Scholes-Merton Model:**
         - Analytical solution for European option pricing
-        - Assumes constant volatility and risk-free rate
+        - Assumes constant vol and risk-free rate
         - No dividends during option's life
         - European-style exercise (only at expiration)
         
