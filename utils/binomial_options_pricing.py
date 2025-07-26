@@ -26,14 +26,10 @@ class BinomialOptionsPricing(EuropeanOptionsPricing):
 
     def calculate_call_option_price(self, *args, **kwargs) -> float:
         # Implement the binomial pricing logic here
-        S = (
-            self.S0
-            * self.u ** np.arange(0, self.N + 1)
-            * self.d ** np.arange(self.N, -1, -1)
-        )
+        S = self.S0 * self.u ** np.arange(0, self.N + 1) * self.d ** np.arange(self.N, -1, -1)
         C = np.maximum(S - self.K, 0)
         intermediate_C = []
-        for time_step in range(self.N, 0, -1):
+        for time_step in range(self.N, 0, -1):            
             intermediate_C.append(C)
             C = self.disc * (self.p * C[1:] + (1 - self.p) * C[:-1])
         return C[0]
